@@ -1,0 +1,40 @@
+modules = ["nodejs-20"]
+[userenv]
+
+[userenv.shared]
+NEXT_PUBLIC_APP_URL = "https://b95cef09-b4d7-44ad-9474-680db5a6918c-00-24cbfq72grkqi.picard.replit.dev"
+NEXT_PUBLIC_CLERK_SIGN_IN_URL = "/sign-in"
+NEXT_PUBLIC_CLERK_SIGN_UP_URL = "/sign-up"
+NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = "/"
+NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = "/"
+
+[nix]
+channel = "stable-25_05"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "next dev --turbopack -p 3000"
+waitForPort = 3000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
