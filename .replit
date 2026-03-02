@@ -2,7 +2,6 @@ modules = ["nodejs-20"]
 [userenv]
 
 [userenv.shared]
-NEXT_PUBLIC_APP_URL = "https://b95cef09-b4d7-44ad-9474-680db5a6918c-00-24cbfq72grkqi.picard.replit.dev"
 NEXT_PUBLIC_CLERK_SIGN_IN_URL = "/sign-in"
 NEXT_PUBLIC_CLERK_SIGN_UP_URL = "/sign-up"
 NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = "/"

@@ -40,13 +40,13 @@ export const ProjectView = ({ projectId }: Props) => {
           minSize={20}
           className="flex flex-col min-h-0"
         >
-          <ErrorBoundary fallback={<p>Project header error</p>}>
-            <Suspense fallback={<p>Loading project...</p>}>
+          <ErrorBoundary fallback={<div className="p-4 text-sm text-destructive">Failed to load project header.</div>}>
+            <Suspense fallback={<div className="p-4 text-sm text-muted-foreground animate-pulse">Loading project...</div>}>
               <ProjectHeader projectId={projectId} />
             </Suspense>
           </ErrorBoundary>
-          <ErrorBoundary fallback={<p>Messages container error</p>}>
-            <Suspense fallback={<p>Loading messages...</p>}>
+          <ErrorBoundary fallback={<div className="p-4 text-sm text-destructive">Failed to load messages.</div>}>
+            <Suspense fallback={<div className="p-4 text-sm text-muted-foreground animate-pulse">Loading messages...</div>}>
               <MessagesContainer
                 projectId={projectId}
                 activeFragment={activeFragment}
