@@ -6,6 +6,9 @@ NEXT_PUBLIC_CLERK_SIGN_IN_URL = "/sign-in"
 NEXT_PUBLIC_CLERK_SIGN_UP_URL = "/sign-up"
 NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = "/"
 NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = "/"
+AUTH_SECRET = "vibe-super-secret-jwt-key-2024-please-change-in-production-xyz789"
+NEXT_PUBLIC_APP_URL = ""
+INNGEST_DEV = "1"
 
 [nix]
 channel = "stable-25_05"
@@ -22,6 +25,10 @@ author = "agent"
 task = "workflow.run"
 args = "Start application"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Inngest Dev Server"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -34,6 +41,25 @@ waitForPort = 3000
 [workflows.workflow.metadata]
 outputType = "webview"
 
+[[workflows.workflow]]
+name = "Inngest Dev Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest --no-discovery"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[ports]]
 localPort = 3000
 externalPort = 80
+
+[[ports]]
+localPort = 8288
+externalPort = 3001
+
+[[ports]]
+localPort = 8289
+externalPort = 3002

@@ -87,4 +87,26 @@ export const projectsRouter = createTRPCRouter({
 
       return createdProject;
     }),
+  delete: protectedProcedure
+    .input(z.object({
+      id: z.string().min(1, { message: "Id is required" }),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const existingProject = await prisma.project.findUnique({
+        where: {
+          id: input.id,
+          userId: ctx.auth.userId,
+        },
+      });
+
+      if (!existingProject) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+      }
+
+      await prisma.project.delete({
+        where: { id: input.id },
+      });
+
+      return { success: true };
+    }),
 });
