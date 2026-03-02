@@ -2,10 +2,6 @@ modules = ["nodejs-20"]
 [userenv]
 
 [userenv.shared]
-NEXT_PUBLIC_CLERK_SIGN_IN_URL = "/sign-in"
-NEXT_PUBLIC_CLERK_SIGN_UP_URL = "/sign-up"
-NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL = "/"
-NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL = "/"
 AUTH_SECRET = "vibe-super-secret-jwt-key-2024-please-change-in-production-xyz789"
 NEXT_PUBLIC_APP_URL = ""
 INNGEST_DEV = "1"
@@ -45,12 +41,12 @@ outputType = "webview"
 name = "Inngest Dev Server"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest --no-discovery"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx --yes inngest-cli@latest dev -u http://localhost:3000/api/inngest --no-discovery"
 
 [[ports]]
 localPort = 3000

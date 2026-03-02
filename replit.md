@@ -16,6 +16,11 @@ Key capabilities:
 
 Preferred communication style: Simple, everyday language (Indonesian/English).
 
+## Known Issues & Fixes
+
+- **Inngest CLI install prompt (FIXED)**: The `npx inngest-cli` command was prompting for `y` to confirm installation on each start, blocking all background AI jobs. Fixed by adding `--yes` flag to the workflow command. The Inngest Dev Server workflow command must always include `npx --yes inngest-cli@latest dev ...`.
+- **@inngest/agent-kit version conflict (FIXED)**: `@inngest/agent-kit@0.8.4` imports private inngest paths (`inngest/components/InngestFunction`, `inngest/helpers/errors`) that are not exported by inngest v3.x's `exports` field, causing a Turbopack module resolution error. Fixed by removing all `@inngest/agent-kit` usage and rewriting `src/inngest/functions.ts` with a custom agent loop that calls Pollinations AI directly via fetch. `src/inngest/utils.ts` was also cleaned up to remove agent-kit types.
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -33,7 +38,7 @@ Preferred communication style: Simple, everyday language (Indonesian/English).
 - **API Layer**: tRPC routers under `src/trpc/routers/` with three sub-routers: `projects`, `messages`, `usage`
 - **Auth Middleware**: Custom JWT middleware (`src/middleware.ts`). Protected routes: `/projects/*`. Public routes: `/`, `/sign-in`, `/api/*`, `/pricing`. Authenticated users visiting `/sign-in` are redirected to `/`
 - **Background Jobs**: Inngest handles the long-running AI agent workflow (`codeAgentFunction`) triggered by `code-agent/run` events
-- **AI Agent System**: Uses `@inngest/agent-kit` to create a multi-agent network
+- **AI Agent System**: Custom agent loop implemented directly in `src/inngest/functions.ts` using direct fetch calls to the Pollinations AI OpenAI-compatible API (no `@inngest/agent-kit` dependency — removed due to incompatible internal inngest module path requirements)
 - **Rate Limiting**: `rate-limiter-flexible` with Prisma storage; admin gets 10,000 credits per 30-day window
 
 ### Authentication System
