@@ -81,6 +81,11 @@ Feature code follows a domain-driven structure under `src/modules/`:
 | **TanStack React Query** | Client-side caching, SSR hydration for tRPC responses | `src/trpc/client.tsx`, `src/trpc/server.tsx` |
 | **Radix UI** | Accessible headless UI primitives underlying Shadcn components | `src/components/ui/` |
 
+## Bug Fixes Applied
+
+- **`ProjectsList` unauthenticated query fix**: Added `enabled: !!user` to the `useQuery` call in `src/modules/home/ui/components/projects-list.tsx` to prevent the protected `projects.getMany` tRPC procedure from being called when the user is not authenticated. This was causing a `TRPCClientError: Not authenticated` runtime error on the home page.
+- **Removed conflicting `.env` file**: The `.env` file had empty values (`=""`) for all secrets which were overriding the Replit secrets/environment variables (e.g., `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=""`). This caused "Missing publishableKey" errors during `npm run build`. The file was removed — all required values are managed via Replit secrets and env vars.
+
 ### Required Environment Variables
 
 - `DATABASE_URL` — PostgreSQL connection string

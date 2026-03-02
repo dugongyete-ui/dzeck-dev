@@ -11,10 +11,13 @@ import { Button } from "@/components/ui/button";
 
 export const ProjectsList = () => {
   const trpc = useTRPC();
-  const { user } = useUser();
-  const { data: projects } = useQuery(trpc.projects.getMany.queryOptions());
+  const { user, isLoaded } = useUser();
+  const { data: projects } = useQuery({
+    ...trpc.projects.getMany.queryOptions(),
+    enabled: !!user,
+  });
 
-  if (!user) return null;
+  if (!isLoaded || !user) return null;
 
   return (
     <div className="w-full bg-white dark:bg-sidebar rounded-xl p-8 border flex flex-col gap-y-6 sm:gap-y-4">
