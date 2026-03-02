@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
+import dynamic from "next/dynamic";
 
 import { cn } from "@/lib/utils";
 import { useScroll } from "@/hooks/use-scroll";
-import { Button } from "@/components/ui/button";
-import { UserControl } from "@/components/user-control";
+
+const NavbarAuth = dynamic(
+  () => import("./navbar-auth").then((m) => m.NavbarAuth),
+  { ssr: false }
+);
 
 export const Navbar = () => {
   const isScrolled = useScroll();
@@ -24,23 +27,7 @@ export const Navbar = () => {
           <Image src="/logo.svg" alt="Vibe" width={24} height={24} />
           <span className="font-semibold text-lg">Vibe</span>
         </Link>
-        <SignedOut>
-          <div className="flex gap-2">
-            <SignUpButton>
-              <Button variant="outline" size="sm">
-                Sign up
-              </Button>
-            </SignUpButton>
-            <SignInButton>
-              <Button size="sm">
-                Sign in
-              </Button>
-            </SignInButton>
-          </div>
-        </SignedOut>
-        <SignedIn>
-          <UserControl showName />
-        </SignedIn>
+        <NavbarAuth />
       </div>
     </nav>
   );
