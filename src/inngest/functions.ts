@@ -65,7 +65,7 @@ async function callLLM(
   } = {},
 ): Promise<Cohere.NonStreamedChatResponse> {
   const params: Cohere.ChatRequest = {
-    model: "command-r-plus",
+    model: "command-a-03-2025",
     message,
     chatHistory,
     temperature: options.temperature ?? 0.1,
