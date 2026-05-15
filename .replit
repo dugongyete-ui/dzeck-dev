@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "postgresql-16"]
+modules = ["nodejs-20", "web", "bash"]
 [userenv]
 
 [userenv.shared]
@@ -30,13 +30,13 @@ args = "Inngest Dev Server"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "next dev --turbopack -p 3000"
-waitForPort = 3000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node_modules/.bin/next dev -p 5000"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Inngest Dev Server"
@@ -51,6 +51,10 @@ args = "npx --yes inngest-cli@1.17.9 dev -u http://localhost:3000/api/inngest --
 
 [[ports]]
 localPort = 3000
+externalPort = 80
+
+[[ports]]
+localPort = 5000
 externalPort = 80
 
 [[ports]]
@@ -69,8 +73,17 @@ externalPort = 3000
 localPort = 8291
 externalPort = 3003
 
+[[ports]]
+localPort = 8292
+externalPort = 5173
+
+[[ports]]
+localPort = 8293
+externalPort = 6000
+
 [agent]
 expertMode = true
+stack = "BEST_EFFORT_FALLBACK"
 
 [postMerge]
 path = "scripts/post-merge.sh"
