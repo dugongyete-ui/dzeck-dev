@@ -185,6 +185,7 @@ export const codeAgentFunction = inngest.createFunction(
             try {
               const sandbox = await getSandbox(sandboxId);
               const result = await sandbox.commands.run(command, {
+                cwd: "/home/user",
                 onStdout: (data: string) => {
                   buffers.stdout += data;
                 },
@@ -212,7 +213,12 @@ export const codeAgentFunction = inngest.createFunction(
                 }
                 const sandbox = await getSandbox(sandboxId);
                 for (const file of fileList) {
-                  await sandbox.files.write(file.path, file.content);
+                  // E2B requires absolute paths — prefix relative paths with /home/user/
+                  const absolutePath = file.path.startsWith("/")
+                    ? file.path
+                    : `/home/user/${file.path}`;
+                  await sandbox.files.write(absolutePath, file.content);
+                  // Store with relative path for display in code viewer
                   updated[file.path] = file.content;
                 }
                 return updated;
@@ -301,6 +307,9 @@ export const codeAgentFunction = inngest.createFunction(
     });
 
     const isError = !summary || Object.keys(files).length === 0;
+
+    // Wait for Next.js hot-reload to pick up written files before grabbing the URL
+    await step.sleep("wait-for-hotreload", "5 seconds");
 
     const sandboxUrl = await step.run("get-sandbox-url", async () => {
       const sandbox = await getSandbox(sandboxId);
