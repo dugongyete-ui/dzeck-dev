@@ -1,5 +1,7 @@
+"use client";
+
 import { useState } from "react";
-import { ExternalLinkIcon, RefreshCcwIcon } from "lucide-react";
+import { ExternalLinkIcon, RefreshCcwIcon, Loader2Icon } from "lucide-react";
 
 import { Hint } from "@/components/hint";
 import { Fragment } from "@/generated/prisma";
@@ -12,8 +14,10 @@ interface Props {
 export function FragmentWeb({ data }: Props) {
   const [copied, setCopied] = useState(false);
   const [fragmentKey, setFragmentKey] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   const onRefresh = () => {
+    setIsLoading(true);
     setFragmentKey((prev) => prev + 1);
   };
 
@@ -27,24 +31,24 @@ export function FragmentWeb({ data }: Props) {
     <div className="flex flex-col w-full h-full">
       <div className="p-2 border-b bg-sidebar flex items-center gap-x-2">
         <Hint text="Refresh" side="bottom" align="start">
-          <Button size="sm" variant="outline" onClick={onRefresh}>
-            <RefreshCcwIcon />
+          <Button size="sm" variant="outline" onClick={onRefresh} disabled={isLoading}>
+            <RefreshCcwIcon className={isLoading ? "animate-spin" : ""} />
           </Button>
         </Hint>
-        <Hint text="Click to copy" side="bottom">
-          <Button 
-            size="sm" 
-            variant="outline" 
+        <Hint text="Click to copy URL" side="bottom">
+          <Button
+            size="sm"
+            variant="outline"
             onClick={handleCopy}
             disabled={!data.sandboxUrl || copied}
             className="flex-1 justify-start text-start font-normal"
           >
-            <span className="truncate">
-              {data.sandboxUrl}
+            <span className="truncate text-xs text-muted-foreground">
+              {copied ? "Copied!" : data.sandboxUrl}
             </span>
           </Button>
         </Hint>
-        <Hint text="Open in a new tab" side="bottom" align="start">
+        <Hint text="Open in new tab" side="bottom" align="end">
           <Button
             size="sm"
             disabled={!data.sandboxUrl}
@@ -58,13 +62,22 @@ export function FragmentWeb({ data }: Props) {
           </Button>
         </Hint>
       </div>
-      <iframe
-        key={fragmentKey}
-        className="h-full w-full"
-        sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-modals allow-pointer-lock"
-        loading="lazy"
-        src={data.sandboxUrl}
-      />
+      <div className="relative flex-1 overflow-hidden">
+        {isLoading && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background">
+            <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading preview...</p>
+          </div>
+        )}
+        <iframe
+          key={fragmentKey}
+          className="h-full w-full"
+          sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-modals allow-pointer-lock"
+          loading="lazy"
+          src={data.sandboxUrl}
+          onLoad={() => setIsLoading(false)}
+        />
+      </div>
     </div>
-  )
+  );
 };

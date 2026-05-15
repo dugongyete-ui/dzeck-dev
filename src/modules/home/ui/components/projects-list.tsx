@@ -5,11 +5,12 @@ import Image from "next/image";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trash2Icon, Loader2Icon } from "lucide-react";
+import { Trash2Icon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { useTRPC } from "@/trpc/client";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useSession } from "@/hooks/use-session";
 import {
   AlertDialog,
@@ -32,6 +33,12 @@ export const ProjectsList = () => {
   const { data: projects } = useQuery({
     ...trpc.projects.getMany.queryOptions(),
     enabled: !!user,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      const anyBuilding = data.some((p) => p.generationStatus !== null);
+      return anyBuilding ? 2000 : false;
+    },
   });
 
   const deleteProject = useMutation(trpc.projects.delete.mutationOptions({
@@ -74,71 +81,84 @@ export const ProjectsList = () => {
             </p>
           </div>
         )}
-        {projects?.map((project) => (
-          <div key={project.id} className="relative group">
-            <Button
-              variant="outline"
-              className="font-normal h-auto justify-start w-full text-start p-4"
-              asChild
-            >
-              <Link href={`/projects/${project.id}`}>
-                <div className="flex items-center gap-x-4 w-full">
-                  <Image
-                    src="/logo.svg"
-                    alt="Vibe"
-                    width={32}
-                    height={32}
-                    className="object-contain shrink-0"
-                  />
-                  <div className="flex flex-col min-w-0">
-                    <h3 className="truncate font-medium">
-                      {project.name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDistanceToNow(project.updatedAt, {
-                        addSuffix: true,
-                      })}
-                    </p>
+        {projects?.map((project) => {
+          const isBuilding = !!project.generationStatus;
+          return (
+            <div key={project.id} className="relative group">
+              <Button
+                variant="outline"
+                className="font-normal h-auto justify-start w-full text-start p-4"
+                asChild
+              >
+                <Link href={`/projects/${project.id}`}>
+                  <div className="flex items-center gap-x-4 w-full">
+                    <Image
+                      src="/logo.svg"
+                      alt="Vibe"
+                      width={32}
+                      height={32}
+                      className="object-contain shrink-0"
+                    />
+                    <div className="flex flex-col min-w-0 gap-y-1">
+                      <h3 className="truncate font-medium">
+                        {project.name}
+                      </h3>
+                      {isBuilding ? (
+                        <Badge
+                          variant="secondary"
+                          className="w-fit text-xs gap-1 px-2 py-0 animate-pulse"
+                        >
+                          <SparklesIcon className="size-3" />
+                          {project.generationStatus}
+                        </Badge>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          {formatDistanceToNow(project.updatedAt, {
+                            addSuffix: true,
+                          })}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Link>
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-2 right-2 size-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  disabled={deletingId === project.id}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {deletingId === project.id ? (
-                    <Loader2Icon className="size-3.5 animate-spin" />
-                  ) : (
-                    <Trash2Icon className="size-3.5" />
-                  )}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete project?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete &quot;{project.name}&quot; and all its messages. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => handleDelete(project.id)}
-                    className="bg-destructive text-white hover:bg-destructive/90"
+                </Link>
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 size-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    disabled={deletingId === project.id || isBuilding}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        ))}
+                    {deletingId === project.id ? (
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                    ) : (
+                      <Trash2Icon className="size-3.5" />
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete project?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete &quot;{project.name}&quot; and all its messages. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => handleDelete(project.id)}
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
