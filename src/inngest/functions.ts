@@ -1,4 +1,6 @@
 import { Sandbox } from "@e2b/code-interpreter";
+import { CohereClient } from "cohere-ai";
+import type { Cohere } from "cohere-ai";
 
 import { prisma } from "@/lib/db";
 import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
@@ -7,96 +9,78 @@ import { inngest } from "./client";
 import { SANDBOX_TIMEOUT } from "./types";
 import { getSandbox } from "./utils";
 
-const POLLINATIONS_BASE = "https://gen.pollinations.ai/v1";
-const API_KEY = process.env.API_KEY || "";
+if (!process.env.COHERE_API_KEY) {
+  throw new Error("COHERE_API_KEY environment variable is not set");
+}
 
-const AGENT_TOOLS = [
+const cohere = new CohereClient({ token: process.env.COHERE_API_KEY });
+
+const COHERE_TOOLS: Cohere.Tool[] = [
   {
-    type: "function",
-    function: {
-      name: "terminal",
-      description: "Use the terminal to run commands",
-      parameters: {
-        type: "object",
-        properties: {
-          command: { type: "string", description: "The shell command to run" },
-        },
-        required: ["command"],
+    name: "terminal",
+    description: "Use the terminal to run commands",
+    parameterDefinitions: {
+      command: {
+        description: "The shell command to run",
+        type: "str",
+        required: true,
       },
     },
   },
   {
-    type: "function",
-    function: {
-      name: "createOrUpdateFiles",
-      description: "Create or update files in the sandbox",
-      parameters: {
-        type: "object",
-        properties: {
-          files: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                path: { type: "string" },
-                content: { type: "string" },
-              },
-              required: ["path", "content"],
-            },
-          },
-        },
-        required: ["files"],
+    name: "createOrUpdateFiles",
+    description:
+      "Create or update files in the sandbox. Pass files as a JSON string.",
+    parameterDefinitions: {
+      files: {
+        description:
+          'JSON string of an array of objects with "path" and "content" keys. Example: [{"path":"app/page.tsx","content":"..."}]',
+        type: "str",
+        required: true,
       },
     },
   },
   {
-    type: "function",
-    function: {
-      name: "readFiles",
-      description: "Read files from the sandbox",
-      parameters: {
-        type: "object",
-        properties: {
-          files: {
-            type: "array",
-            items: { type: "string" },
-            description: "List of file paths to read",
-          },
-        },
-        required: ["files"],
+    name: "readFiles",
+    description: "Read files from the sandbox",
+    parameterDefinitions: {
+      files: {
+        description:
+          'JSON string of an array of file paths to read. Example: ["app/page.tsx", "lib/utils.ts"]',
+        type: "str",
+        required: true,
       },
     },
   },
 ];
 
 async function callLLM(
-  model: string,
-  messages: object[],
-  tools?: object[],
-  temperature = 0.1,
-) {
-  const body: Record<string, unknown> = { model, messages, temperature };
-  if (tools && tools.length > 0) {
-    body.tools = tools;
-    body.tool_choice = "auto";
-  }
+  message: string,
+  chatHistory: Cohere.Message[],
+  options: {
+    preamble?: string;
+    tools?: Cohere.Tool[];
+    toolResults?: Cohere.ToolResult[];
+    temperature?: number;
+  } = {},
+): Promise<Cohere.NonStreamedChatResponse> {
+  const params: Cohere.ChatRequest = {
+    model: "command-r-plus",
+    message,
+    chatHistory,
+    temperature: options.temperature ?? 0.1,
+  };
+  if (options.preamble) params.preamble = options.preamble;
+  if (options.tools && options.tools.length > 0) params.tools = options.tools;
+  if (options.toolResults && options.toolResults.length > 0)
+    params.toolResults = options.toolResults;
+  return cohere.chat(params);
+}
 
-  const res = await fetch(`${POLLINATIONS_BASE}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${API_KEY}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`LLM API error ${res.status}: ${text}`);
-  }
-
-  const data = await res.json();
-  return data;
+function parseToolArg(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  return JSON.stringify(value);
 }
 
 export const codeAgentFunction = inngest.createFunction(
@@ -119,63 +103,57 @@ export const codeAgentFunction = inngest.createFunction(
       return messages
         .reverse()
         .map((m) => ({
-          role: m.role === "ASSISTANT" ? "assistant" : "user",
-          content: m.content,
-        }));
+          role: m.role === "ASSISTANT" ? "CHATBOT" : "USER",
+          message: m.content,
+        })) as Cohere.Message[];
     });
 
-    const conversationMessages: object[] = [
-      { role: "system", content: PROMPT },
-      ...previousMessages,
-      { role: "user", content: event.data.value },
-    ];
+    let chatHistory: Cohere.Message[] = previousMessages;
+    const userMessage = event.data.value;
 
     const MAX_ITER = 15;
     let summary = "";
     let files: { [path: string]: string } = {};
+    let pendingToolResults: Cohere.ToolResult[] = [];
 
     for (let i = 0; i < MAX_ITER; i++) {
       const llmResponse = await step.run(`llm-call-${i}`, async () => {
-        return await callLLM("openai-large", conversationMessages, AGENT_TOOLS, 0.1);
+        return await callLLM(userMessage, chatHistory, {
+          preamble: PROMPT,
+          tools: COHERE_TOOLS,
+          toolResults: pendingToolResults.length > 0 ? pendingToolResults : undefined,
+          temperature: 0.1,
+        });
       });
 
-      const choice = llmResponse.choices?.[0];
-      if (!choice) break;
+      chatHistory = (llmResponse.chatHistory as Cohere.Message[]) ?? chatHistory;
+      pendingToolResults = [];
 
-      const message = choice.message;
-      conversationMessages.push(message);
+      const toolCalls = llmResponse.toolCalls ?? [];
 
-      const content: string = typeof message.content === "string" ? message.content : "";
-
-      if (!message.tool_calls || message.tool_calls.length === 0) {
-        if (content.includes("<task_summary>")) {
-          summary = content;
+      if (toolCalls.length === 0) {
+        if (llmResponse.text?.includes("<task_summary>")) {
+          summary = llmResponse.text;
         }
         break;
       }
 
-      for (const toolCall of message.tool_calls) {
-        const toolName: string = toolCall.function.name;
-        let args: Record<string, unknown>;
-        try {
-          args = JSON.parse(toolCall.function.arguments);
-        } catch {
-          conversationMessages.push({
-            role: "tool",
-            tool_call_id: toolCall.id,
-            content: "Error: failed to parse tool arguments",
-          });
-          continue;
-        }
+      const toolResults: Cohere.ToolResult[] = [];
+
+      for (let j = 0; j < toolCalls.length; j++) {
+        const toolCall = toolCalls[j];
+        const toolName = toolCall.name;
+        const rawArgs = toolCall.parameters ?? {};
 
         let toolResult = "";
 
         if (toolName === "terminal") {
-          toolResult = await step.run(`terminal-${i}-${toolCall.id}`, async () => {
+          const command = parseToolArg(rawArgs["command"]);
+          toolResult = await step.run(`terminal-${i}-${j}`, async () => {
             const buffers = { stdout: "", stderr: "" };
             try {
               const sandbox = await getSandbox(sandboxId);
-              const result = await sandbox.commands.run(args.command as string, {
+              const result = await sandbox.commands.run(command, {
                 onStdout: (data: string) => { buffers.stdout += data; },
                 onStderr: (data: string) => { buffers.stderr += data; },
               });
@@ -185,10 +163,16 @@ export const codeAgentFunction = inngest.createFunction(
             }
           });
         } else if (toolName === "createOrUpdateFiles") {
-          const fileList = args.files as Array<{ path: string; content: string }>;
-          const newFiles = await step.run(`createOrUpdateFiles-${i}-${toolCall.id}`, async () => {
+          const filesJson = parseToolArg(rawArgs["files"]);
+          const newFiles = await step.run(`createOrUpdateFiles-${i}-${j}`, async () => {
             const updated: { [p: string]: string } = {};
             try {
+              let fileList: Array<{ path: string; content: string }>;
+              try {
+                fileList = JSON.parse(filesJson);
+              } catch {
+                return `Error: could not parse files argument as JSON: ${filesJson}`;
+              }
               const sandbox = await getSandbox(sandboxId);
               for (const file of fileList) {
                 await sandbox.files.write(file.path, file.content);
@@ -207,11 +191,18 @@ export const codeAgentFunction = inngest.createFunction(
             toolResult = String(newFiles);
           }
         } else if (toolName === "readFiles") {
-          toolResult = await step.run(`readFiles-${i}-${toolCall.id}`, async () => {
+          const filesJson = parseToolArg(rawArgs["files"]);
+          toolResult = await step.run(`readFiles-${i}-${j}`, async () => {
             try {
+              let filePaths: string[];
+              try {
+                filePaths = JSON.parse(filesJson);
+              } catch {
+                return `Error: could not parse files argument as JSON: ${filesJson}`;
+              }
               const sandbox = await getSandbox(sandboxId);
               const contents = [];
-              for (const filePath of args.files as string[]) {
+              for (const filePath of filePaths) {
                 const content = await sandbox.files.read(filePath);
                 contents.push({ path: filePath, content });
               }
@@ -224,28 +215,29 @@ export const codeAgentFunction = inngest.createFunction(
           toolResult = `Unknown tool: ${toolName}`;
         }
 
-        conversationMessages.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: toolResult,
+        toolResults.push({
+          call: toolCall,
+          outputs: [{ result: toolResult }],
         });
       }
+
+      pendingToolResults = toolResults;
     }
 
     const fragmentTitle = await step.run("generate-title", async () => {
-      const res = await callLLM("openai-fast", [
-        { role: "system", content: FRAGMENT_TITLE_PROMPT },
-        { role: "user", content: summary || "An app was built." },
-      ]);
-      return res.choices?.[0]?.message?.content?.trim() || "App";
+      const res = await callLLM(summary || "An app was built.", [], {
+        preamble: FRAGMENT_TITLE_PROMPT,
+        temperature: 0.1,
+      });
+      return res.text?.trim() || "App";
     });
 
     const responseMessage = await step.run("generate-response", async () => {
-      const res = await callLLM("openai-fast", [
-        { role: "system", content: RESPONSE_PROMPT },
-        { role: "user", content: summary || "An app was built." },
-      ]);
-      return res.choices?.[0]?.message?.content?.trim() || "Your app is ready!";
+      const res = await callLLM(summary || "An app was built.", [], {
+        preamble: RESPONSE_PROMPT,
+        temperature: 0.1,
+      });
+      return res.text?.trim() || "Your app is ready!";
     });
 
     const isError = !summary || Object.keys(files).length === 0;

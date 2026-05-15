@@ -50,6 +50,7 @@
     "client-only": "^0.0.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "cohere-ai": "^8.0.0",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "inngest": "^3.32.5",
