@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useRef } from "react";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 
 import { useTRPC } from "@/trpc/client";
 import { Fragment } from "@/generated/prisma";
@@ -28,11 +30,20 @@ export const MessagesContainer = ({
   }, {
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (!data || data.length === 0) return 2000;
+      if (!data || data.length === 0) return 1500;
       const lastMessage = data[data.length - 1];
-      return lastMessage?.role === "USER" ? 2000 : 5000;
+      return lastMessage?.role === "USER" ? 1500 : 5000;
     },
   }));
+
+  const lastMessage = messages[messages.length - 1];
+  const isLastMessageUser = lastMessage?.role === "USER";
+
+  const { data: generationStatus } = useQuery({
+    ...trpc.projects.getStatus.queryOptions({ id: projectId }),
+    refetchInterval: isLastMessageUser ? 1500 : false,
+    enabled: isLastMessageUser,
+  });
 
   useEffect(() => {
     const lastAssistantMessage = messages.findLast(
@@ -49,11 +60,8 @@ export const MessagesContainer = ({
   }, [messages, setActiveFragment]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView();
-  }, [messages.length]);
-
-  const lastMessage = messages[messages.length - 1];
-  const isLastMessageUser = lastMessage?.role === "USER";
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, isLastMessageUser]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -62,6 +70,7 @@ export const MessagesContainer = ({
           {messages.map((message) => (
             <MessageCard
               key={message.id}
+              id={message.id}
               content={message.content}
               role={message.role}
               fragment={message.fragment}
@@ -71,7 +80,7 @@ export const MessagesContainer = ({
               type={message.type}
             />
           ))}
-          {isLastMessageUser && <MessageLoading />}
+          {isLastMessageUser && <MessageLoading status={generationStatus} />}
           <div ref={bottomRef} />
         </div>
       </div>

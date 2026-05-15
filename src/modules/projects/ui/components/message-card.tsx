@@ -1,10 +1,15 @@
+"use client";
+
 import Image from "next/image";
 import { format } from "date-fns";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRightIcon, Code2Icon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Fragment, MessageRole, MessageType } from "@/generated/prisma";
+
+const animatedIds = new Set<string>();
 
 interface UserMessageProps {
   content: string;
@@ -55,6 +60,7 @@ const FragmentCard = ({
 };
 
 interface AssistantMessageProps {
+  id: string;
   content: string;
   fragment: Fragment | null;
   createdAt: Date;
@@ -64,6 +70,7 @@ interface AssistantMessageProps {
 };
 
 const AssistantMessage = ({
+  id,
   content,
   fragment,
   createdAt,
@@ -71,6 +78,34 @@ const AssistantMessage = ({
   onFragmentClick,
   type,
 }: AssistantMessageProps) => {
+  const isNew = !animatedIds.has(id);
+  const [displayed, setDisplayed] = useState(isNew ? "" : content);
+  const indexRef = useRef(isNew ? 0 : content.length);
+
+  useEffect(() => {
+    if (!isNew) return;
+    animatedIds.add(id);
+
+    const words = content.split(" ");
+    let wordIndex = 0;
+
+    const interval = setInterval(() => {
+      if (wordIndex >= words.length) {
+        clearInterval(interval);
+        setDisplayed(content);
+        return;
+      }
+      wordIndex++;
+      setDisplayed(words.slice(0, wordIndex).join(" "));
+    }, 40);
+
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // keep ref in sync (not needed for logic, just suppresses warning)
+  indexRef.current = displayed.length;
+
   return (
     <div className={cn(
       "flex flex-col group px-2 pb-4",
@@ -90,8 +125,8 @@ const AssistantMessage = ({
         </span>
       </div>
       <div className="pl-8.5 flex flex-col gap-y-4">
-        <span>{content}</span>
-        {fragment && type === "RESULT" && (
+        <span>{displayed}</span>
+        {fragment && type === "RESULT" && displayed === content && (
           <FragmentCard
             fragment={fragment}
             isActiveFragment={isActiveFragment}
@@ -104,6 +139,7 @@ const AssistantMessage = ({
 };
 
 interface MessageCardProps {
+  id: string;
   content: string;
   role: MessageRole;
   fragment: Fragment | null;
@@ -114,6 +150,7 @@ interface MessageCardProps {
 };
 
 export const MessageCard = ({
+  id,
   content,
   role,
   fragment,
@@ -125,6 +162,7 @@ export const MessageCard = ({
   if (role === "ASSISTANT") {
     return (
       <AssistantMessage
+        id={id}
         content={content}
         fragment={fragment}
         createdAt={createdAt}

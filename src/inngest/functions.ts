@@ -80,16 +80,27 @@ function parseToolArg(value: unknown): string {
   return JSON.stringify(value);
 }
 
+async function setStatus(projectId: string, status: string | null) {
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { generationStatus: status },
+  });
+}
+
 export const codeAgentFunction = inngest.createFunction(
   { id: "code-agent" },
   { event: "code-agent/run" },
   async ({ event, step }) => {
+    const projectId = event.data.projectId;
+
+    await setStatus(projectId, "Initializing sandbox...");
     const sandboxId = await step.run("get-sandbox-id", async () => {
       const sandbox = await Sandbox.create("vibe-nextjs-test-2");
       await sandbox.setTimeout(SANDBOX_TIMEOUT);
       return sandbox.sandboxId;
     });
 
+    await setStatus(projectId, "Loading context...");
     const previousMessages = await step.run("get-previous-messages", async () => {
       const messages = await prisma.message.findMany({
         where: { projectId: event.data.projectId },
@@ -120,6 +131,7 @@ export const codeAgentFunction = inngest.createFunction(
     let files: { [path: string]: string } = {};
 
     for (let i = 0; i < MAX_ITER; i++) {
+      await setStatus(projectId, i === 0 ? "Analyzing your request..." : "Thinking about next steps...");
       // Extract only plain-serializable data inside step.run to survive Inngest JSON serialization
       const llmResult = await step.run(`llm-call-${i}`, async () => {
         const res = await cohere.v2.chat({
@@ -180,6 +192,7 @@ export const codeAgentFunction = inngest.createFunction(
 
         if (toolName === "terminal") {
           const command = parseToolArg(rawArgs["command"]);
+          await setStatus(projectId, `Running: ${command.slice(0, 60)}${command.length > 60 ? "..." : ""}`);
           toolResult = await step.run(`terminal-${i}-${j}`, async () => {
             const buffers = { stdout: "", stderr: "" };
             try {
@@ -200,6 +213,7 @@ export const codeAgentFunction = inngest.createFunction(
           });
         } else if (toolName === "createOrUpdateFiles") {
           const filesJson = parseToolArg(rawArgs["files"]);
+          await setStatus(projectId, "Writing code files...");
           const newFiles = await step.run(
             `createOrUpdateFiles-${i}-${j}`,
             async () => {
@@ -268,6 +282,7 @@ export const codeAgentFunction = inngest.createFunction(
       }
     }
 
+    await setStatus(projectId, "Finishing up...");
     const fragmentTitle = await step.run("generate-title", async () => {
       const res = await cohere.v2.chat({
         model: MODEL,
@@ -318,6 +333,12 @@ export const codeAgentFunction = inngest.createFunction(
     });
 
     await step.run("save-result", async () => {
+      // Clear generation status once done
+      await prisma.project.update({
+        where: { id: event.data.projectId },
+        data: { generationStatus: null },
+      });
+
       if (isError) {
         return await prisma.message.create({
           data: {

@@ -42,7 +42,14 @@ export const ProjectForm = () => {
       queryClient.invalidateQueries(
         trpc.usage.status.queryOptions(),
       );
-      router.push(`/projects/${data.id}`);
+      form.reset();
+      toast.success("Project created! AI is building your app...", {
+        action: {
+          label: "Open",
+          onClick: () => router.push(`/projects/${data.id}`),
+        },
+        duration: 8000,
+      });
     },
     onError: (error) => {
       toast.error(error.message);
