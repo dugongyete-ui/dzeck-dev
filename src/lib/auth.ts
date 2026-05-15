@@ -19,7 +19,12 @@ export interface SessionPayload {
 }
 
 export async function createSession(payload: SessionPayload): Promise<string> {
-  const token = await new SignJWT(payload)
+  const jwtPayload: Record<string, string> = {
+    userId: payload.userId,
+    email: payload.email,
+    name: payload.name,
+  };
+  const token = await new SignJWT(jwtPayload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")

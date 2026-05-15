@@ -47,7 +47,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx --yes inngest-cli@1.17.9 dev -u http://localhost:3000/api/inngest --no-discovery"
+args = "npx --yes inngest-cli@1.17.9 dev -u http://localhost:3000/api/inngest --no-discovery --port 8288"
 
 [[ports]]
 localPort = 3000
@@ -68,3 +68,10 @@ externalPort = 3000
 [[ports]]
 localPort = 8291
 externalPort = 3003
+
+[agent]
+expertMode = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 180000
