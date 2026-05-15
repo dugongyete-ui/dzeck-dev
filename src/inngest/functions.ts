@@ -288,9 +288,12 @@ export const codeAgentFunction = inngest.createFunction(
         model: MODEL,
         messages: [
           { role: "system", content: FRAGMENT_TITLE_PROMPT },
-          { role: "user", content: summary || "An app was built." },
+          {
+            role: "user",
+            content: `User request: "${userMessage}"\n\n${summary || "An app was built."}`,
+          },
         ],
-        temperature: 0.1,
+        temperature: 0.3,
       });
       const content = res.message.content;
       const text =
@@ -299,7 +302,7 @@ export const codeAgentFunction = inngest.createFunction(
           : Array.isArray(content)
             ? content.map((c) => ("text" in c ? c.text : "")).join("")
             : "";
-      return text.trim() || "App";
+      return text.trim() || "Web App";
     });
 
     const responseMessage = await step.run("generate-response", async () => {
@@ -307,9 +310,12 @@ export const codeAgentFunction = inngest.createFunction(
         model: MODEL,
         messages: [
           { role: "system", content: RESPONSE_PROMPT },
-          { role: "user", content: summary || "An app was built." },
+          {
+            role: "user",
+            content: `User request: "${userMessage}"\n\n${summary || "An app was built."}`,
+          },
         ],
-        temperature: 0.1,
+        temperature: 0.5,
       });
       const content = res.message.content;
       const text =
@@ -318,7 +324,7 @@ export const codeAgentFunction = inngest.createFunction(
           : Array.isArray(content)
             ? content.map((c) => ("text" in c ? c.text : "")).join("")
             : "";
-      return text.trim() || "Your app is ready!";
+      return text.trim() || "Aplikasi kamu sudah siap!";
     });
 
     const isError = !summary || Object.keys(files).length === 0;
