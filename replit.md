@@ -20,6 +20,10 @@ Preferred communication style: Simple, everyday language (Indonesian/English).
 
 - **Inngest CLI install prompt (FIXED)**: The `npx inngest-cli` command was prompting for `y` to confirm installation on each start, blocking all background AI jobs. Fixed by adding `--yes` flag to the workflow command. The Inngest Dev Server workflow command must always include `npx --yes inngest-cli@latest dev ...`.
 - **@inngest/agent-kit version conflict (FIXED)**: `@inngest/agent-kit@0.8.4` imports private inngest paths (`inngest/components/InngestFunction`, `inngest/helpers/errors`) that are not exported by inngest v3.x's `exports` field, causing a Turbopack module resolution error. Fixed by removing all `@inngest/agent-kit` usage and rewriting `src/inngest/functions.ts` with a custom agent loop that calls Pollinations AI directly via fetch. `src/inngest/utils.ts` was also cleaned up to remove agent-kit types.
+- **Cohere AI integration (ACTIVE)**: AI provider switched from Pollinations to Cohere AI (`cohere-ai` SDK v8). Uses `command-r-plus` model via `CohereClient`. Requires `COHERE_API_KEY` environment variable. Agent loop uses Cohere chat history format (`USER`/`CHATBOT` roles) with native tool calling via `parameterDefinitions`.
+- **Inngest port conflict (FIXED)**: Inngest CLI auto-relocates from port 8288 to 8290 due to Replit environment conflict. Fixed by setting `INNGEST_BASE_URL=http://127.0.0.1:8290` in `.replit` `[userenv.shared]` so the Inngest SDK knows where the dev server actually is. CLI pinned to `inngest-cli@1.17.9`.
+- **TypeScript error in auth.ts (FIXED)**: `SignJWT(payload)` where `payload` is `SessionPayload` failed because `jose` requires `JWTPayload` (which needs an index signature). Fixed by converting to `Record<string, string>` before passing to `SignJWT`.
+- **Post-merge setup script (ADDED)**: Created `scripts/post-merge.sh` registered in `.replit` as `[postMerge]` path. Runs `npm install`, `prisma generate`, and `prisma migrate deploy` automatically after task merges.
 
 ## System Architecture
 
@@ -38,7 +42,7 @@ Preferred communication style: Simple, everyday language (Indonesian/English).
 - **API Layer**: tRPC routers under `src/trpc/routers/` with three sub-routers: `projects`, `messages`, `usage`
 - **Auth Middleware**: Custom JWT middleware (`src/middleware.ts`). Protected routes: `/projects/*`. Public routes: `/`, `/sign-in`, `/api/*`, `/pricing`. Authenticated users visiting `/sign-in` are redirected to `/`
 - **Background Jobs**: Inngest handles the long-running AI agent workflow (`codeAgentFunction`) triggered by `code-agent/run` events
-- **AI Agent System**: Custom agent loop implemented directly in `src/inngest/functions.ts` using direct fetch calls to the Pollinations AI OpenAI-compatible API (no `@inngest/agent-kit` dependency — removed due to incompatible internal inngest module path requirements)
+- **AI Agent System**: Custom agent loop in `src/inngest/functions.ts` using Cohere AI SDK (`cohere-ai`) with `command-r-plus` model. Native Cohere tool calling via `parameterDefinitions`. No `@inngest/agent-kit` dependency.
 - **Rate Limiting**: `rate-limiter-flexible` with Prisma storage; admin gets 10,000 credits per 30-day window
 
 ### Authentication System
@@ -82,7 +86,7 @@ Preferred communication style: Simple, everyday language (Indonesian/English).
 |---|---|---|
 | **E2B Code Interpreter** | Cloud sandboxes for running AI-generated Next.js code | `E2B_API_KEY` |
 | **Inngest** | Background job queue for long-running AI agent workflows | `INNGEST_API_KEY`, `INNGEST_SIGNING_KEY` |
-| **Pollinations AI** | LLM provider for code generation | `API_KEY` |
+| **Cohere AI** | LLM provider for code generation (`command-r-plus`) | `COHERE_API_KEY` |
 | **PostgreSQL** | Primary relational database | `DATABASE_URL` |
 | **Auth Secret** | JWT signing secret | `AUTH_SECRET` |
 
@@ -91,6 +95,6 @@ Preferred communication style: Simple, everyday language (Indonesian/English).
 - `DATABASE_URL` — PostgreSQL connection string
 - `AUTH_SECRET` — Secret key for JWT signing (already set in Replit secrets)
 - `E2B_API_KEY` — E2B sandbox API key
-- `API_KEY` — Pollinations AI API key
+- `COHERE_API_KEY` — Cohere AI API key (used for code generation with `command-r-plus`)
 - `INNGEST_API_KEY`, `INNGEST_SIGNING_KEY` — Inngest credentials (for production)
 - `NEXT_PUBLIC_APP_URL` — Public URL (auto-detected on Replit)
