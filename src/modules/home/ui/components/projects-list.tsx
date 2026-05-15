@@ -108,7 +108,7 @@ export const ProjectsList = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="absolute top-2 right-2 size-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  className="absolute top-2 right-2 size-7 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                   disabled={deletingId === project.id}
                   onClick={(e) => e.stopPropagation()}
                 >
