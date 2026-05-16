@@ -4,7 +4,7 @@ import { generateSlug } from "random-word-slugs";
 import { prisma } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
 import { inngest } from "@/inngest/client";
-import { consumeCredits } from "@/lib/usage";
+import { consumeCredits, refundCredits } from "@/lib/usage";
 import { protectedProcedure, createTRPCRouter } from "@/trpc/init";
 
 export const projectsRouter = createTRPCRouter({
@@ -88,13 +88,25 @@ export const projectsRouter = createTRPCRouter({
         }
       });
 
-      await inngest.send({
-        name: "code-agent/run",
-        data: {
-          value: input.value,
-          projectId: createdProject.id,
-        },
-      });
+      try {
+        await inngest.send({
+          name: "code-agent/run",
+          data: {
+            value: input.value,
+            projectId: createdProject.id,
+          },
+        });
+      } catch (sendError) {
+        // Inngest send failed — delete the project and refund credits so the user
+        // is not silently charged for a job that was never queued
+        await prisma.project.delete({ where: { id: createdProject.id } });
+        await refundCredits();
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to start AI agent. Please try again.",
+          cause: sendError,
+        });
+      }
 
       return createdProject;
     }),

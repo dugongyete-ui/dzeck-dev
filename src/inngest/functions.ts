@@ -129,7 +129,9 @@ export const codeAgentFunction = inngest.createFunction(
     const MAX_ITER = 15;
     let summary = "";
     let files: { [path: string]: string } = {};
+    let functionCompleted = false;
 
+    try {
     for (let i = 0; i < MAX_ITER; i++) {
       await setStatus(projectId, i === 0 ? "Analyzing your request..." : "Thinking about next steps...");
       // Extract only plain-serializable data inside step.run to survive Inngest JSON serialization
@@ -261,7 +263,11 @@ export const codeAgentFunction = inngest.createFunction(
               const sandbox = await getSandbox(sandboxId);
               const contents = [];
               for (const filePath of filePaths) {
-                const content = await sandbox.files.read(filePath);
+                // Apply same /home/user/ prefix as createOrUpdateFiles
+                const absolutePath = filePath.startsWith("/")
+                  ? filePath
+                  : `/home/user/${filePath}`;
+                const content = await sandbox.files.read(absolutePath);
                 contents.push({ path: filePath, content });
               }
               return JSON.stringify(contents);
@@ -273,7 +279,7 @@ export const codeAgentFunction = inngest.createFunction(
           toolResult = `Unknown tool: ${toolName}`;
         }
 
-        // Append tool result message
+        // Append tool result message (Cohere V2: content must be string or ToolContent[])
         messages.push({
           role: "tool",
           toolCallId: toolCallId,
@@ -282,6 +288,7 @@ export const codeAgentFunction = inngest.createFunction(
       }
     }
 
+    // Agent loop completed normally
     await setStatus(projectId, "Finishing up...");
     const fragmentTitle = await step.run("generate-title", async () => {
       const res = await cohere.v2.chat({
@@ -339,7 +346,7 @@ export const codeAgentFunction = inngest.createFunction(
     });
 
     await step.run("save-result", async () => {
-      // Clear generation status once done
+      // Clear generation status once fully done
       await prisma.project.update({
         where: { id: event.data.projectId },
         data: { generationStatus: null },
@@ -373,11 +380,27 @@ export const codeAgentFunction = inngest.createFunction(
       });
     });
 
+    functionCompleted = true;
+
     return {
       url: sandboxUrl,
       title: fragmentTitle,
       files,
       summary,
     };
+    } finally {
+      // If the function crashed or timed out at any point, reset generationStatus
+      // so the UI never shows a permanently stuck status.
+      if (!functionCompleted) {
+        try {
+          await prisma.project.update({
+            where: { id: projectId },
+            data: { generationStatus: null },
+          });
+        } catch {
+          // best-effort: don't mask the original error
+        }
+      }
+    }
   },
 );

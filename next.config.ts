@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
     "localhost",
     ...replitDomains,
   ],
+  experimental: {
+    useWasmBinary: true,
+  },
 };
 
 export default nextConfig;

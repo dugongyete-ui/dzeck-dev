@@ -8,7 +8,14 @@ const ADMIN_PASSWORD = "admin123";
 const ADMIN_NAME = "Administrator";
 
 function getSecret(): Uint8Array {
-  const secret = process.env.AUTH_SECRET || "vibe-fallback-secret-key";
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    throw new Error(
+      "[AUTH] AUTH_SECRET environment variable is not set. " +
+      "Set a strong random secret to sign JWT tokens. " +
+      "The app refuses to run without it to prevent forged tokens."
+    );
+  }
   return new TextEncoder().encode(secret);
 }
 

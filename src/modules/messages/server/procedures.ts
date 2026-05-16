@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/lib/db";
 import { inngest } from "@/inngest/client";
 import { protectedProcedure, createTRPCRouter } from "@/trpc/init";
-import { consumeCredits } from "@/lib/usage";
+import { consumeCredits, refundCredits } from "@/lib/usage";
 
 export const messagesRouter = createTRPCRouter({
   getMany: protectedProcedure
@@ -74,13 +74,25 @@ export const messagesRouter = createTRPCRouter({
         },
       });
 
-      await inngest.send({
-        name: "code-agent/run",
-        data: {
-          value: input.value,
-          projectId: input.projectId,
-        },
-      });
+      try {
+        await inngest.send({
+          name: "code-agent/run",
+          data: {
+            value: input.value,
+            projectId: input.projectId,
+          },
+        });
+      } catch (sendError) {
+        // Inngest send failed — delete the message and refund credits so the user
+        // is not silently charged for a job that was never queued
+        await prisma.message.delete({ where: { id: createdMessage.id } });
+        await refundCredits();
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to start AI agent. Please try again.",
+          cause: sendError,
+        });
+      }
 
       return createdMessage;
     }),

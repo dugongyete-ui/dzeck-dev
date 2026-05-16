@@ -29,6 +29,21 @@ export async function consumeCredits() {
   return result;
 }
 
+export async function refundCredits() {
+  const session = await getSession();
+
+  if (!session?.userId) {
+    return;
+  }
+
+  const usageTracker = await getUsageTracker();
+  try {
+    await usageTracker.reward(session.userId, GENERATION_COST);
+  } catch {
+    // best-effort: don't mask the original error
+  }
+}
+
 export async function getUsageStatus() {
   const session = await getSession();
 

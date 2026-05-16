@@ -4,7 +4,12 @@ import { jwtVerify } from "jose";
 const SESSION_COOKIE = "vibe-session";
 
 function getSecret(): Uint8Array {
-  const secret = process.env.AUTH_SECRET || "vibe-fallback-secret-key";
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) {
+    throw new Error(
+      "[AUTH] AUTH_SECRET environment variable is not set."
+    );
+  }
   return new TextEncoder().encode(secret);
 }
 
